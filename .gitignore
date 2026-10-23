@@ -1,0 +1,7 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+keys/certificate_private_key.pem
+keys/certificate_public_key.pem
