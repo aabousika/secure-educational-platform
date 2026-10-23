@@ -8,6 +8,16 @@ from app.infrastructure.database.base import Base
 from app.infrastructure.database.session import engine
 from app.infrastructure.database import models  # noqa: F401
 from app.presentation.routers import auth, grades, students, certificates
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
+
+app.mount(
+    "/dashboard",
+    StaticFiles(directory=FRONTEND_DIR, html=True),
+    name="dashboard",
+)
 
 settings = get_settings()
 
