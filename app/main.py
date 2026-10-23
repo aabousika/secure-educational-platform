@@ -11,13 +11,6 @@ from app.presentation.routers import auth, grades, students, certificates
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 
-FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
-
-app.mount(
-    "/dashboard",
-    StaticFiles(directory=FRONTEND_DIR, html=True),
-    name="dashboard",
-)
 
 settings = get_settings()
 
@@ -47,3 +40,11 @@ app.include_router(certificates.router)
 def health() -> dict[str, str]:
     """Expose a basic liveness check."""
     return {"status": "ok"}
+
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
+
+app.mount(
+    "/dashboard",
+    StaticFiles(directory=str(FRONTEND_DIR), html=True),
+    name="dashboard",
+)
