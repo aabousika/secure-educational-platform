@@ -38,6 +38,12 @@
   const dateFmt = new Intl.DateTimeFormat('ar-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' });
   const fmtDate = v => { const d = new Date(v); return isNaN(d) ? String(v) : dateFmt.format(d); };
   const pct = (s, m) => (m > 0 ? Math.round((s / m) * 1000) / 10 : 0);
+  // IDs are typed as free text: digits only, within the PostgreSQL SERIAL (int32) range.
+  const parseId = v => {
+    const s = String(v).trim();
+    if (!/^\d+$/.test(s) || Number(s) < 1 || Number(s) > 2147483647) throw new Error('أدخل رقمًا صحيحًا موجبًا (أرقام فقط)');
+    return Number(s);
+  };
 
   function toast(msg, type = 'ok') {
     let box = document.getElementById('toasts');
@@ -247,9 +253,9 @@
 
   function teacherView() {
     const out = h('div');
-    const form = formEl([field('رقم الطالب (ID)', { name: 'sid', type: 'number', min: 1, step: 1, required: true, inputmode: 'numeric', dir: 'ltr' })],
+    const form = formEl([field('رقم الطالب (ID)', { name: 'sid', type: 'text', inputmode: 'numeric', pattern: '[0-9]+', title: 'أرقام فقط', autocomplete: 'off', required: true, dir: 'ltr' })],
       'فتح ملف الطالب', fd => {
-        const id = Number(fd.get('sid'));
+        const id = parseId(fd.get('sid'));
         out.replaceChildren(h('div', { class: 'stack' }, h('h2', {}, `ملف الطالب #${id}`), tabs([
           { label: 'الدرجات', render: () => gradesAdmin(id) },
           { label: 'البيانات الشخصية', render: () => piiAdmin(id) },
@@ -275,9 +281,9 @@
       }, 'row-form');
 
     const out = h('div');
-    const certForm = formEl([field('رقم الشهادة', { name: 'cid', type: 'number', min: 1, step: 1, required: true, dir: 'ltr' })],
+    const certForm = formEl([field('رقم الشهادة', { name: 'cid', type: 'text', inputmode: 'numeric', pattern: '[0-9]+', title: 'أرقام فقط', autocomplete: 'off', required: true, dir: 'ltr' })],
       'عرض والتحقق', async fd => {
-        out.replaceChildren(certCard(await api(`/certificates/${Number(fd.get('cid'))}`)));
+        out.replaceChildren(certCard(await api(`/certificates/${parseId(fd.get('cid'))}`)));
       }, 'row-form');
 
     return h('div', { class: 'stack' },
