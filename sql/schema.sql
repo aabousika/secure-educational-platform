@@ -40,5 +40,8 @@ CREATE TABLE audit_events (
   action VARCHAR(100) NOT NULL,
   resource_type VARCHAR(100) NOT NULL,
   resource_id VARCHAR(100),
+  ip_address VARCHAR(45),
+  outcome VARCHAR(16) NOT NULL DEFAULT 'success',
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX ix_audit_events_created_at ON audit_events (created_at);

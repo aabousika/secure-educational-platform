@@ -2,7 +2,9 @@
 
 from fastapi import APIRouter, HTTPException, Response
 from app.application.services import PlatformService
-from app.presentation.dependencies import Db, CurrentUser, InstructorUser
+from app.application.audit import AuditService
+from app.domain.security import Action
+from app.presentation.dependencies import Db, CurrentUser, InstructorUser, ClientIP
 from app.presentation.schemas import PIIRequest, PIIResponse
 
 router = APIRouter(prefix="/students", tags=["Student PII"])
@@ -20,12 +22,16 @@ def update_pii(student_id: int, payload: PIIRequest, instructor: InstructorUser,
 
 
 @router.get("/{student_id}/pii", response_model=PIIResponse)
-def read_pii(student_id: int, user: CurrentUser, db: Db):
+def read_pii(student_id: int, user: CurrentUser, db: Db, ip: ClientIP):
     """Allow instructors to read any student's PII and students only their own."""
     if user.role == "student" and user.id != student_id:
+        AuditService.record(db, Action.ACCESS_DENIED, actor_id=user.id, resource_type="student_pii",
+                            resource_id=str(student_id), ip=ip, outcome="denied")
         raise HTTPException(status_code=403, detail="You may only access your own PII")
     if user.role not in {"student", "instructor"}:
         raise HTTPException(status_code=403, detail="Access denied")
+    AuditService.record(db, Action.PII_READ, actor_id=user.id, resource_type="student_pii",
+                        resource_id=str(student_id), ip=ip)
     payload = service.read_pii(db, student_id)
     if payload is None:
         raise HTTPException(status_code=404, detail="PII record not found")

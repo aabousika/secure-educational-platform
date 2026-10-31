@@ -86,3 +86,31 @@ class CertificateResponse(BaseModel):
     signature_b64: str
     issued_at: datetime
     valid: bool
+
+
+class SecurityAlertResponse(BaseModel):
+    """One anomaly-detection finding; `rule` is a stable code for client-side translation."""
+
+    model_config = ConfigDict(from_attributes=True)
+    rule: str
+    severity: str
+    entity: str
+    window_start: datetime
+    window_end: datetime
+    count: int
+    description: str
+    score: float | None = None
+    details: dict[str, float] = Field(default_factory=dict)
+    ml_corroborated: bool = False
+
+
+class SecurityReportResponse(BaseModel):
+    """Alerts for the requested period plus basic model provenance."""
+
+    model_config = ConfigDict(from_attributes=True)
+    generated_at: datetime
+    hours: int
+    events_analyzed: int
+    baseline_windows: int
+    synthetic_windows: int
+    alerts: list[SecurityAlertResponse]

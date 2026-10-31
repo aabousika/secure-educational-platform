@@ -1,7 +1,7 @@
 """FastAPI dependency providers for database access and authorization."""
 
 from typing import Annotated
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -38,3 +38,11 @@ def instructor_user(user: CurrentUser) -> UserModel:
 
 
 InstructorUser = Annotated[UserModel, Depends(instructor_user)]
+
+
+def client_ip(request: Request) -> str | None:
+    """Return the direct peer address (behind a reverse proxy, configure trusted forwarded headers instead)."""
+    return request.client.host if request.client else None
+
+
+ClientIP = Annotated[str | None, Depends(client_ip)]

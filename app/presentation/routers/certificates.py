@@ -3,7 +3,9 @@
 from fastapi import APIRouter, HTTPException
 from app.application.services import PlatformService
 from app.infrastructure.database.models import CertificateModel
-from app.presentation.dependencies import Db, CurrentUser, InstructorUser
+from app.application.audit import AuditService
+from app.domain.security import Action
+from app.presentation.dependencies import Db, CurrentUser, InstructorUser, ClientIP
 from app.presentation.schemas import CertificateCreate, CertificateResponse
 
 router = APIRouter(prefix="/certificates", tags=["Certificates"])
@@ -45,22 +47,34 @@ def service_certificates(db: Db, student_id: int) -> list[CertificateModel]:
 
 
 @router.get("/{certificate_id}", response_model=CertificateResponse)
-def get_certificate(certificate_id: int, user: CurrentUser, db: Db):
+def get_certificate(certificate_id: int, user: CurrentUser, db: Db, ip: ClientIP):
     """Instructors can view any certificate; students only their own."""
     cert = db.get(CertificateModel, certificate_id)
     if cert is None:
         raise HTTPException(status_code=404, detail="Certificate not found")
     if user.role == "student" and cert.student_id != user.id:
+        AuditService.record(db, Action.ACCESS_DENIED, actor_id=user.id, resource_type="certificate",
+                            resource_id=str(cert.id), ip=ip, outcome="denied")
         raise HTTPException(status_code=403, detail="You may only access your own certificates")
-    return as_response(cert)
+    response = as_response(cert)
+    if not response.valid:
+        AuditService.record(db, Action.CERT_INVALID, actor_id=user.id, resource_type="certificate",
+                            resource_id=str(cert.id), ip=ip, outcome="failure")
+    return response
 
 
 @router.post("/verify/{certificate_id}")
-def verify(certificate_id: int, user: CurrentUser, db: Db):
+def verify(certificate_id: int, user: CurrentUser, db: Db, ip: ClientIP):
     """Verify a certificate's digest and digital signature."""
     cert = db.get(CertificateModel, certificate_id)
     if cert is None:
         raise HTTPException(status_code=404, detail="Certificate not found")
     if user.role == "student" and cert.student_id != user.id:
+        AuditService.record(db, Action.ACCESS_DENIED, actor_id=user.id, resource_type="certificate",
+                            resource_id=str(cert.id), ip=ip, outcome="denied")
         raise HTTPException(status_code=403, detail="You may only verify your own certificates")
-    return {"certificate_id": cert.id, "valid": service.verify_certificate(cert)}
+    valid = service.verify_certificate(cert)
+    if not valid:
+        AuditService.record(db, Action.CERT_INVALID, actor_id=user.id, resource_type="certificate",
+                            resource_id=str(cert.id), ip=ip, outcome="failure")
+    return {"certificate_id": cert.id, "valid": valid}

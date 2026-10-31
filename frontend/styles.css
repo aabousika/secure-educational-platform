@@ -88,3 +88,10 @@ summary { cursor: pointer; color: var(--primary); }
   .tab { padding: .5rem .7rem; }
   .app-header .in { gap: .4rem; }
 }
+
+/* security alerts */
+:root { --warn: #8a5a00; --warn-bg: #fdf1d6; }
+@media (prefers-color-scheme: dark) { :root { --warn: #f2c76e; --warn-bg: #3a2c0d; } }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+select { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .7rem; }
+td.alert-desc { white-space: normal; min-width: 240px; }

@@ -73,4 +73,6 @@ class AuditEventModel(Base):
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     resource_type: Mapped[str] = mapped_column(String(100), nullable=False)
     resource_id: Mapped[str | None] = mapped_column(String(100))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    ip_address: Mapped[str | None] = mapped_column(String(45))
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False, default="success", server_default="success")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)

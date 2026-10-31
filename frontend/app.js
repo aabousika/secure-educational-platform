@@ -266,6 +266,59 @@
       card('البحث عن طالب', form, h('p', { class: 'note' }, 'يظهر رقم الطالب في أعلى الصفحة بعد تسجيل دخوله (بجوار الدور).')), out);
   }
 
+  /* ---------------- security alerts (anomaly detection) ---------------- */
+  const SEVERITY = { critical: ['حرجة', 'bad'], high: ['عالية', 'bad'], medium: ['متوسطة', 'warn'] };
+  const RULE_AR = {
+    brute_force_ip: ['تخمين كلمات المرور', n => `${n} محاولة دخول فاشلة من عنوان IP واحد خلال دقائق`],
+    brute_force_account: ['تخمين موزّع على حساب', n => `${n} محاولة فاشلة على الحساب نفسه من عدة عناوين`],
+    credential_stuffing: ['حشو بيانات الاعتماد', n => `محاولات فاشلة على ${n} حسابًا مختلفًا من عنوان واحد`],
+    account_takeover: ['اشتباه استيلاء على حساب', n => `دخول ناجح مباشرة بعد ${n} محاولات فاشلة على الحساب نفسه`],
+    idor_probe: ['استكشاف صلاحيات (IDOR)', n => `${n} محاولة وصول مرفوضة إلى بيانات مستخدمين آخرين`],
+    mass_pii_access: ['وصول جماعي للبيانات الشخصية', n => `قراءة بيانات ${n} طالبًا مختلفًا خلال دقائق`],
+    grade_burst: ['دفعة درجات غير معتادة', n => `إضافة ${n} درجة خلال دقائق`],
+    certificate_tamper: ['شهادة بتوقيع غير صالح', () => 'فشل التحقق من التوقيع الرقمي لشهادة'],
+    ml_anomaly: ['نشاط شاذ (ML)', n => `${n} حدثًا في نافذة بعيدة عن السلوك المعتاد المتعلَّم`],
+  };
+
+  const alertRow = a => {
+    const [sev, cls] = SEVERITY[a.severity] || [a.severity, 'warn'];
+    const [title, text] = RULE_AR[a.rule] || [a.rule, () => a.description];
+    const hints = Object.entries(a.details || {}).map(([k, v]) => `${k}=${fmtNum(v)}`);
+    if (a.rule === 'ml_anomaly' && a.score != null) hints.push(`score=${a.score}`);
+    return h('tr', {},
+      h('td', {}, h('span', { class: 'badge ' + cls }, sev)),
+      h('td', {}, title),
+      h('td', {}, ltr(a.entity, 'mono')),
+      h('td', { class: 'alert-desc' }, text(a.count),
+        a.ml_corroborated ? h('div', { class: 'muted' }, '✓ أكّده نموذج ML أيضًا') : null,
+        hints.length ? h('div', { class: 'muted' }, 'المؤشرات: ', ltr(hints.join(' · '))) : null),
+      h('td', {}, fmtDate(a.window_end)));
+  };
+
+  const alertsView = r => h('div', {},
+    h('p', { class: 'muted' }, `تم تحليل ${r.events_analyzed} حدثًا · ${r.alerts.length} تنبيه`),
+    r.alerts.length
+      ? h('div', { class: 'table-wrap' }, h('table', {},
+        h('thead', {}, h('tr', {}, ['الخطورة', 'النوع', 'الكيان', 'الوصف', 'آخر نشاط'].map(t => h('th', { scope: 'col' }, t)))),
+        h('tbody', {}, r.alerts.map(alertRow))))
+      : h('p', {}, '✅ لا توجد أنشطة مشبوهة في هذه الفترة.'),
+    r.synthetic_windows > 0
+      ? h('p', { class: 'note' }, `سجل الأحداث قصير، لذلك أُكمل خط الأساس بـ ${r.synthetic_windows} نافذة نشاط اصطناعية. تتحسن دقة النموذج كلما تراكمت بيانات حقيقية.`)
+      : null);
+
+  function securityCard() {
+    const box = h('div');
+    let hours = 24;
+    const load = () => loadInto(box, () => api(`/security/alerts?hours=${hours}`), alertsView);
+    const picker = h('select', { 'aria-label': 'الفترة الزمنية', onchange: e => { hours = Number(e.target.value); load(); } },
+      [[1, 'آخر ساعة'], [24, 'آخر 24 ساعة'], [72, 'آخر 3 أيام'], [168, 'آخر أسبوع']]
+        .map(([v, t]) => h('option', { value: v, selected: v === 24 }, t)));
+    load();
+    return card('تنبيهات الأمان (كشف الشذوذ)',
+      h('div', { class: 'row' }, picker, h('button', { class: 'btn', type: 'button', onclick: load }, 'تحديث')), box,
+      h('p', { class: 'muted' }, 'قواعد للأنماط المعروفة + نموذج kNN يتعلّم السلوك المعتاد لاكتشاف الأنماط غير المعروفة. التنبيهات استشارية وتحتاج مراجعة بشرية.'));
+  }
+
   function adminView(user) {
     const health = h('div');
     const check = () => loadInto(health, () => api('/health', { auth: false }),
@@ -288,6 +341,7 @@
 
     return h('div', { class: 'stack' },
       card('حالة الخادم', health, apiForm),
+      securityCard(),
       card('التحقق من شهادة', certForm, out),
       card('الجلسة الحالية', kv([['رقم الحساب', ltr('#' + user.id)], ['الدور', ROLE_AR[user.role] || user.role], ['تنتهي الجلسة', fmtDate(user.exp * 1000)]])),
       h('p', { class: 'note' }, 'ملاحظة: لا يوجد دور «مدير» في الـ Backend الحالي؛ هذه الصفحة للمدرّسين. إنشاء حساب مدرّس يتم عبر سطر الأوامر فقط: ',

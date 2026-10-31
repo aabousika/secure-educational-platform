@@ -3,7 +3,9 @@
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import Session
 from app.application.services import PlatformService
-from app.presentation.dependencies import Db, CurrentUser, InstructorUser
+from app.application.audit import AuditService
+from app.domain.security import Action
+from app.presentation.dependencies import Db, CurrentUser, InstructorUser, ClientIP
 from app.presentation.schemas import GradeCreate, GradeResponse
 
 router = APIRouter(prefix="/grades", tags=["Grades"])
@@ -29,9 +31,11 @@ def my_grades(user: CurrentUser, db: Db):
 
 
 @router.get("/student/{student_id}", response_model=list[GradeResponse])
-def grades_for_student(student_id: int, user: CurrentUser, db: Db):
+def grades_for_student(student_id: int, user: CurrentUser, db: Db, ip: ClientIP):
     """Instructors can read any student's grades; students only their own."""
     if user.role == "student" and user.id != student_id:
+        AuditService.record(db, Action.ACCESS_DENIED, actor_id=user.id, resource_type="grade",
+                            resource_id=str(student_id), ip=ip, outcome="denied")
         raise HTTPException(status_code=403, detail="You may only access your own grades")
     if user.role not in {"student", "instructor"}:
         raise HTTPException(status_code=403, detail="Access denied")
